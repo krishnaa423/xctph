@@ -7,23 +7,6 @@ $`G_{S'S\nu}(Q,q)= \sum_{cc'vk} A^{SQ+q\star}_{cvk+q}g_{cc'\nu}(k,q)A^{SQ}_{c'vk
 
 see Eq. 49 here https://journals.aps.org/prb/pdf/10.1103/PhysRevB.105.085111 for more details.
 
-Presently Xctph interfaces with BerkeleyGW (for computing $`A^{SQ}_{cvk}`$) and EPW for (computing $`g_{mn\nu}(k,q)`$).
-
-Developed by Jonah Haber (jbhaber@stanford.edu).
-
-# Documentation
-## Ab-initio calculations
-Prior to running Xctph a number of ab-initio calculations will need to be run. We recommend using 
-the following directory structure.
-
-1. `01-xct`    : Q=0 bse calculation (using BGW)
-2. `02-xct-Q`  : Q!=0 bse caluclation (using BGW)
-3. `03-ph`     : dfpt calculation (using ph.x in QE)
-4. `04-elph`   : electron-phonon matrix element calculation (using epw.x in QE)
-5. `05-xctph`  : directory for post-processing (empty for the moment)  
-
-An example of this directory structure can be found in `xctph/example/LiF`.
-
 ## Xctph Instructions
 Xctph contains the following 5 command line utilities which sould be run in the following order
 to extract exciton-phonon matrix elements
@@ -73,27 +56,3 @@ Where the flags are as follows
         path to the h5 file written by `write_xct_h5.py`, for example './xct.h5'
 9. `nbnd_xct` : 
         number of exciton states for which to compute the exciton phonon matrix element, for example 2
-
-Detailed instructions for how to run this workflow for LiF can be found in `xctph/examples/LiF/05-xctph/readme.txt`.
-
-# Requirements
-1. Python 3+
-2. scipy
-
-# Installation
-    conda create --name xctph
-    conda activate xctph
-    cd xctph
-    pip install -e . 
-
-After successful installation the command line utilities should be added to your python path,
-so that whenever you are in the xcth conda enviornment you should have access to these scripts.
-
-To test this type:
-    `which compute_xctph.py`
-
-To see which flags a utility takes, type:
-    `compute_xctph.py -h`
-
-
-
