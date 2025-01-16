@@ -43,7 +43,7 @@ class ParSize:
 class Xctph:
     def __init__(
         self, 
-        input_filename: str = './input/pkl',
+        input_filename: str = './input.pkl',
         add_electron_part: bool = True,
         add_hole_part: bool = True,
     ):
@@ -58,14 +58,14 @@ class Xctph:
 
     def read_elph(self):
         with h5py.File('./elph.h5', 'r') as f:
-            self.nmodes = f['gkq_header/nmode'][()]
-            self.nk_elph = f['gkq_header/nk'][()]
-            self.kpts_elph = f['gkq_header/kpts'][()]
-            self.nq = f['gkq_header/nq'][()]
-            self.qpts = f['gkq_header/qpts'][()]
-            self.k_plus_q_map = f['gkq_mappings/k_plus_q_map'][()]
-            self.frequencies = f['gkq_data/frequencies'][()]
-            self.gkq = f['gkq_data/g_nu'][()]
+            self.nmodes = f['elph_header/nmode'][()]
+            self.nk_elph = f['elph_header/nk'][()]
+            self.kpts_elph = f['elph_header/kpts'][()]
+            self.nq = f['elph_header/nq'][()]
+            self.qpts = f['elph_header/qpts'][()]
+            self.k_plus_q_map = f['elph_header/k_plus_q_map'][()]
+            self.frequencies = f['elph_data/frequencies'][()]
+            self.gkq = f['elph_data/elph_mode'][()]
 
     def generate_xct(self):
         xct = Xct()
@@ -92,7 +92,7 @@ class Xctph:
         self.generate_elph()
         self.read_elph()
         self.generate_xct()
-        self.read_elph()
+        self.read_xct()
         self.read_input()
 
         # Checks.
@@ -139,7 +139,6 @@ class Xctph:
                         if self.add_hole_part:
                             self.gQq[mnb - self.xct_start, iQ, :, iq] -= np.einsum('vc,wvn,wc->n', aQq_h.conj(), gkq_h, aQ_h)
         
-
     def write(self):
         xctph_dict = {
             # header information.

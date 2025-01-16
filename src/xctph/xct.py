@@ -13,7 +13,7 @@ from ase.units import Ry, eV
 
 #region classes
 class Xct:
-    def __init__(self, xct_dir_glob: str = './bseq_for_xctph/Q_*'):
+    def __init__(self, xct_dir_glob: str = './bseq_for_xctph/Q_*/eigenvectors.h5'):
         self.xct_dir_glob: str = xct_dir_glob  
 
     def read(self):
