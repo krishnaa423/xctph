@@ -3,13 +3,14 @@ from setuptools import setup, find_packages
 setup(
     name='xctph',
     version='1.1.1',
-    packages=find_packages(where='./'),
+    packages=['xctph'],
     install_requires=[
         'numpy', 
         'scipy', 
         'h5py', 
         'xmltodict', 
-        'setuptools'
+        'setuptools',
+        'fp_workflow',
     ],
     author='Krishnaa Vadivel',
     author_email='',

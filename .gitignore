@@ -1,0 +1,4 @@
+examples/
+build/
+dist/
+xctph.egg-info/
