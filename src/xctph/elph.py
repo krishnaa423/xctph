@@ -8,6 +8,7 @@ import numpy as np
 from ase.units import Hartree, Rydberg, _amu, _me
 import scipy 
 from xctph.utils.k_plus_q import get_all_kq_maps
+from fp.schedulers.scheduler import JobProcDesc
 #endregion
 
 #region variables
@@ -46,15 +47,22 @@ class Elph:
             qexml = xmltodict.parse(read_stream.read())
 
         # Update. Order is from base file used for refactoring. 
-        self.npool = self.input_dict.get('epw', {}).get('job_info', {}).get('ni')
+        if isinstance(self.input_dict['epw']['job_info'], str):
+            epw_job_info = JobProcDesc.from_job_id(
+                self.input_dict['epw']['job_info'],
+                self.input_dict,
+            )
+        else:
+            epw_job_info = JobProcDesc(**self.input_dict['epw']['job_info'])
+        self.npool = epw_job_info.ni
         self.npool = 1 if self.npool is None else self.npool
         self.prefix = qexml[u'qes:espresso']['input']['control_variables']['prefix']
         
         # parse qexml input.
         input_node = qexml[u'qes:espresso']['input']
         self.nat = int(input_node['atomic_structure']['@nat'])
-        self.alat = int(input_node['atomic_structure']['@alat'])
-        self.ntyp = int(input_node['atomic_structure']['@ntyp'])
+        self.alat = float(input_node['atomic_structure']['@alat'])
+        self.ntyp = int(input_node['atomic_species']['@ntyp'])
         self.lat = np.zeros((3, 3), 'f8')
         self.pos = np.zeros((self.nat, 3), 'f8')
         self.species = dict()
@@ -84,8 +92,8 @@ class Elph:
         # parse qexml output.
         output_node = qexml[u'qes:espresso']['output']['band_structure']
         self.nocc = int(self.input_dict['total_valence_bands'])
-        self.nc = self.input_dict['wfn']['num_cond_bands']
-        self.nv = self.input_dict['wfn']['num_val_bands']
+        self.nc = self.input_dict['abs']['num_cond_bands']
+        self.nv = self.input_dict['abs']['num_val_bands']
         self.nbnd = self.nocc + self.nc
         self.nbnd_end = self.nocc + self.nc 
         self.nbnd_begin = self.nocc - self.nv 
@@ -93,10 +101,8 @@ class Elph:
         self.nk = int(output_node['nks'])
         self.nq = self.nk 
         self.kpts_cart = np.zeros((self.nk, 3), 'f8')
-        self.energies = np.zeros((self.nk, self.nbnd), 'f8')
         for ik in range(self.nk):
             self.kpts_cart[ik, :] = self._to_array(output_node['ks_energies'][ik]['k_point']['#text'])
-            self.energies[ik, self.nbnd] = self._to_array(output_node['ks_energies'][ik]['eigenvalues']['#text']) * Hartree / Rydberg
         self.kpts = self._cart2crys(self.kpts_cart, self.lat, self.alat)
         self.nmodes = 3 * self.nat 
         self.nk_per_pool = int(self.nk / self.npool)
@@ -244,7 +250,6 @@ class Elph:
             'elph_header/k_plus_q_map': self.k_plus_q_map,
 
             # Data sets.
-            'elph_data/energies': self.energies[self.nbnd_begin:self.nbnd_end],
             'elph_data/frequencies': self.frequencies,
             'elph_data/elph_mode': self.elph_mode,
             'elph_data/elph_cart': self.elph_cart,
@@ -253,4 +258,5 @@ class Elph:
         with h5py.File('elph.h5', 'w') as f:
             for name, data in sorting_dict.items():
                 f.create_dataset(name, data=data)
+
 #endregion
