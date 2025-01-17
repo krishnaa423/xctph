@@ -89,9 +89,12 @@ class Xctph:
 
     def calc(self):
         # Preliminaries.
-        self.generate_elph()
+        self.comm = MPI.COMM_WORLD
+        # Only generate from the rank 0. 
+        if self.comm.Get_rank()==0:
+            self.generate_elph()
+            self.generate_xct()
         self.read_elph()
-        self.generate_xct()
         self.read_xct()
         self.read_input()
 
@@ -105,7 +108,6 @@ class Xctph:
         k_minus_Q_map = get_all_kq_maps(self.kpts, self.Qpts, -1.0)
 
         # Parallel version.
-        self.comm = MPI.COMM_WORLD
         self.xctbnd_parsize = ParSize(shape=(self.nbnd_xct, self.nbnd_xct), comm=self.comm)
         self.xct_start, self.xct_end = self.xctbnd_parsize.get_local_range()
         self.gQq: np.ndarray = np.zeros((self.xct_end - self.xct_start, self.nQ, self.nmodes, self.nq), 'c16')
@@ -185,4 +187,5 @@ class Xctph:
                 w.create_dataset('xctph', data=xctph)
 
         self.comm.Barrier()
+
 #endregion
