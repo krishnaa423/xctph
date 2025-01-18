@@ -54,7 +54,7 @@ class Elph:
             )
         else:
             epw_job_info = JobProcDesc(**self.input_dict['epw']['job_info'])
-        self.npool = epw_job_info.ni
+        self.npool = epw_job_info.nk
         self.npool = 1 if self.npool is None else self.npool
         self.prefix = qexml[u'qes:espresso']['input']['control_variables']['prefix']
         

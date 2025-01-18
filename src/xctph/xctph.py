@@ -38,8 +38,19 @@ class ParSize:
         return (self.local_start, self.local_end)
 
     def get_idx(self, linear_idx):
-        return (linear_idx // self.shape[1], linear_idx % self.shape[0]) 
+        assert linear_idx < self.array_size, f'Linear idx: {linear_idx} is greater than array size: {self.array_size}'
+        
+        array_idx = list(None for _ in range(len(self.shape)))
+        current_index = linear_idx
+        for dim in range(len(self.shape)-1):
+            stride = int(np.prod(self.shape[dim+1:]))
+            array_idx[dim] = current_index // stride
+            current_index = current_index % stride
+        array_idx[-1] = current_index 
 
+        return array_idx 
+
+        return output 
 class Xctph:
     def __init__(
         self, 
@@ -172,19 +183,27 @@ class Xctph:
         with h5py.File('xctph.h5', 'w', driver='mpio', comm=self.comm) as f:
             # Write everything except the xctph data array, as that needs to be written in parallel.
             for name, data in xctph_dict.items():
-                if name != 'xctph':
-                    f.create_dataset(name, data=data)
-                else:
+                if name == 'xctph':
                     # Write the xctph array in parallel.
                     ds_xctph_linear = f.create_dataset('xctph_linear', shape=(self.nbnd_xct*self.nbnd_xct, self.nQ, self.nmodes, self.nq), dtype=self.gQq.dtype)
                     ds_xctph_linear[self.xct_start:self.xct_end, ...] = data
 
-        # # Reshape only on main node.
-        if self.xctbnd_parsize.mpi_rank==0:
-            with h5py.File('xctph.h5', 'a') as w:
-                xctph = w['xctph_linear'][:].reshape(self.nbnd_xct, self.nbnd_xct, self.nQ, self.nmodes, self.nq)
-                del w['xctph_linear']
-                w.create_dataset('xctph', data=xctph)
+                    # # Create virtual dataset for reshape.
+                    layout = h5py.VirtualLayout(shape=(self.nbnd_xct, self.nbnd_xct, self.nQ, self.nmodes, self.nq), dtype='c16')
+                    source = h5py.VirtualSource('xctph.h5', 'xctph_linear', shape=(self.nbnd_xct*self.nbnd_xct, self.nQ, self.nmodes, self.nq), dtype='c16')
+
+                    layout[:, :, :, :, :] = source[:, :, :, :]
+                    ds_vx = f.create_virtual_dataset('xctph', layout)
+                else:
+                    f.create_dataset(name, data=data)
+
+
+        # # # Reshape only on main node.
+        # if self.xctbnd_parsize.mpi_rank==0:
+        #     with h5py.File('xctph.h5', 'a') as w:
+        #         xctph = w['xctph_linear'][:].reshape(self.nbnd_xct, self.nbnd_xct, self.nQ, self.nmodes, self.nq)
+        #         del w['xctph_linear']
+        #         w.create_dataset('xctph', data=xctph)
 
         self.comm.Barrier()
 
