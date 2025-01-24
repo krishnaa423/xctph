@@ -51,6 +51,7 @@ class ParSize:
         return array_idx 
 
         return output 
+
 class Xctph:
     def __init__(
         self, 
@@ -75,6 +76,7 @@ class Xctph:
             self.nq = f['elph_header/nq'][()]
             self.qpts = f['elph_header/qpts'][()]
             self.k_plus_q_map = f['elph_header/k_plus_q_map'][()]
+            self.k_minus_q_map = f['elph_header/k_minus_q_map'][()]
             self.frequencies = f['elph_data/frequencies'][()]
             self.gkq = f['elph_data/elph_mode'][()]
 
@@ -121,7 +123,9 @@ class Xctph:
         # Parallel version.
         self.xctbnd_parsize = ParSize(shape=(self.nbnd_xct, self.nbnd_xct), comm=self.comm)
         self.xct_start, self.xct_end = self.xctbnd_parsize.get_local_range()
-        self.gQq: np.ndarray = np.zeros((self.xct_end - self.xct_start, self.nQ, self.nmodes, self.nq), 'c16')
+        self.gQq_eh: np.ndarray = np.zeros((self.xct_end - self.xct_start, self.nQ, self.nmodes, self.nq), 'c16')
+        self.gQq_e: np.ndarray = np.zeros((self.xct_end - self.xct_start, self.nQ, self.nmodes, self.nq), 'c16')
+        self.gQq_h: np.ndarray = np.zeros((self.xct_end - self.xct_start, self.nQ, self.nmodes, self.nq), 'c16')
 
         cb = slice(self.nv, self.nv + self.nc)
         vb = slice(0, self.nv)
@@ -142,7 +146,8 @@ class Xctph:
                         gkq_e = self.gkq[cb, cb, ik, :, iq]
 
                         if self.add_electron_part:
-                            self.gQq[mnb - self.xct_start, iQ, :, iq] += np.einsum('vc,cdn,vd->n', aQq_e.conj(), gkq_e, aQ_e)
+                            self.gQq_eh[mnb - self.xct_start, iQ, :, iq] += np.einsum('vc,cdn,vd->n', aQq_e.conj(), gkq_e, aQ_e)
+                            self.gQq_e[mnb - self.xct_start, iQ, :, iq] += np.einsum('vc,cdn,vd->n', aQq_e.conj(), gkq_e, aQ_e)
 
                         # hole channel
                         aQ_h = self.avck[0, :, :, ik_plus_q, nb, iQ]
@@ -150,7 +155,13 @@ class Xctph:
                         gkq_h = self.gkq[vb, vb, ik_minus_Q, :, iq][::-1, ::-1, :]
 
                         if self.add_hole_part:
-                            self.gQq[mnb - self.xct_start, iQ, :, iq] -= np.einsum('vc,wvn,wc->n', aQq_h.conj(), gkq_h, aQ_h)
+                            self.gQq_eh[mnb - self.xct_start, iQ, :, iq] -= np.einsum('vc,wvn,wc->n', aQq_h.conj(), gkq_h, aQ_h)
+                            self.gQq_h[mnb - self.xct_start, iQ, :, iq] -= np.einsum('vc,wvn,wc->n', aQq_h.conj(), gkq_h, aQ_h)
+
+                    if self.comm.Get_rank()==0:
+                        print(f'Done Q: {iQ}, q: {iq}, k: {ik}', flush=True)
+        
+        print('Done loop', flush=True)
         
     def write(self):
         xctph_dict = {
@@ -166,12 +177,15 @@ class Xctph:
             'qpts': self.qpts,
 
             # Q+q mappings.
-            'Q_plus_q_map': self.Q_plus_q_map,
+            'Q_plus_q_map': self.k_plus_q_map,
+            'Q_minus_q_map': self.k_minus_q_map,
 
             # energies, frequencies, and matrix elements.
             'energies': self.energies[:self.nbnd_xct, :],
             'frequencies': self.frequencies,
-            'xctph' : self.gQq,
+            'xctph_eh' : self.gQq_eh,
+            'xctph_e' : self.gQq_e,
+            'xctph_h' : self.gQq_h,
         }
 
         # # Serial version:
@@ -183,17 +197,17 @@ class Xctph:
         with h5py.File('xctph.h5', 'w', driver='mpio', comm=self.comm) as f:
             # Write everything except the xctph data array, as that needs to be written in parallel.
             for name, data in xctph_dict.items():
-                if name == 'xctph':
+                if 'xctph' in name:
                     # Write the xctph array in parallel.
-                    ds_xctph_linear = f.create_dataset('xctph_linear', shape=(self.nbnd_xct*self.nbnd_xct, self.nQ, self.nmodes, self.nq), dtype=self.gQq.dtype)
+                    ds_xctph_linear = f.create_dataset(f'{name}_linear', shape=(self.nbnd_xct*self.nbnd_xct, self.nQ, self.nmodes, self.nq), dtype=self.gQq_eh.dtype)
                     ds_xctph_linear[self.xct_start:self.xct_end, ...] = data
 
                     # # Create virtual dataset for reshape.
                     layout = h5py.VirtualLayout(shape=(self.nbnd_xct, self.nbnd_xct, self.nQ, self.nmodes, self.nq), dtype='c16')
-                    source = h5py.VirtualSource('xctph.h5', 'xctph_linear', shape=(self.nbnd_xct*self.nbnd_xct, self.nQ, self.nmodes, self.nq), dtype='c16')
+                    source = h5py.VirtualSource('xctph.h5', f'{name}_linear', shape=(self.nbnd_xct*self.nbnd_xct, self.nQ, self.nmodes, self.nq), dtype='c16')
 
                     layout[:, :, :, :, :] = source[:, :, :, :]
-                    ds_vx = f.create_virtual_dataset('xctph', layout)
+                    ds_vx = f.create_virtual_dataset(f'{name}', layout)
                 else:
                     f.create_dataset(name, data=data)
 

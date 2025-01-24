@@ -224,6 +224,7 @@ class Elph:
     def calc_k_plus_q_map(self):
         # We also compute the kq_maps in this
         self.k_plus_q_map = get_all_kq_maps(self.kpts, self.qpts)
+        self.k_minus_q_map = get_all_kq_maps(self.kpts, self.qpts, plus_or_minus=-1.0)
 
     def read(self):
         self.read_from_input_and_qe()
@@ -248,6 +249,7 @@ class Elph:
             
             # Information on k+q mappings.
             'elph_header/k_plus_q_map': self.k_plus_q_map,
+            'elph_header/k_minus_q_map': self.k_minus_q_map,
 
             # Data sets.
             'elph_data/frequencies': self.frequencies,
