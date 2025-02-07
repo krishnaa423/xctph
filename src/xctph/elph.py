@@ -160,6 +160,9 @@ class Elph:
         # Rotate epb matrix elements from atomic to mode basis
         self.elph_mode = np.zeros((self.nbnd_red, self.nbnd_red, self.nk, self.nmodes, self.nq), 'c16')
         self.frequencies = np.zeros((self.nmodes, self.nq), 'f8')
+        self.phevecs = np.zeros((3 * self.nat, self.nmodes, self.nq), 'c16')
+        self.phmasses = np.zeros((3 * self.nat), 'f8')
+        self.phevecs_massred = np.zeros((3 * self.nat, self.nmodes, self.nq), 'c16') 
 
         print('Begin rotating from gkq from atomic to mode basis')
 
@@ -183,7 +186,7 @@ class Elph:
             dynm_sym = np.asarray((dynm + np.conj(dynm).T) / 2, 'c16')
 
             # frequencies.
-            w2, self.phevecs = np.linalg.eigh(dynm_sym)
+            w2, self.phevecs[:, :, iq] = np.linalg.eigh(dynm_sym)
             for imode in range(self.nmodes):
 
                 if iq == 0 and imode < 3:
@@ -198,12 +201,12 @@ class Elph:
                     self.frequencies[imode, iq] = np.sqrt(np.abs(w2[imode]))
 
             # modes. (mass reduced normal modes.)
-            self.phevecs_massred = np.empty((3 * self.nat, self.nmodes), 'c16')
 
             for i in range(self.nat):
                 m_i = self.masses[self.typlist_num[i]]
-                self.phevecs_massred[3 * i:3 * (i + 1), :] = \
-                    self.phevecs[3 * i:3 * (i + 1), :] / np.sqrt(m_i * _amu/ _me / 2.)
+                self.phevecs_massred[3 * i:3 * (i + 1), :, iq] = \
+                    self.phevecs[3 * i:3 * (i + 1), :, iq] / np.sqrt(m_i * _amu/ _me / 2.)
+                self.phmasses[3 * i: 3 * (i + 1)] = m_i * _amu / _me / 2.   # In Rydberg units.
                 
             # Loop through gkq_ia and transform into the mode basis
             gk_ai = self.elph_cart[..., iq]
@@ -213,7 +216,7 @@ class Elph:
                 for jb in range(self.nbnd_red):
                     for ik in range(self.nk):
                         for imode in range(self.nmodes):
-                            gk_nu[ib, jb, ik, imode] = np.dot(gk_ai[ib, jb, ik, :], self.phevecs_massred[:, imode])
+                            gk_nu[ib, jb, ik, imode] = np.dot(gk_ai[ib, jb, ik, :], self.phevecs_massred[:, imode, iq])
 
             for imode in range(self.nmodes):
                 if iq == 0 and imode < 3:
@@ -234,6 +237,7 @@ class Elph:
         self.calc_k_plus_q_map()
 
     def write(self):
+        # Everything i
         sorting_dict = {
             # Header information.
             'elph_header/ns': 1,
@@ -253,6 +257,9 @@ class Elph:
 
             # Data sets.
             'elph_data/frequencies': self.frequencies,
+            'elph_data/phevecs': self.phevecs,
+            'elph_data/phevecs_massred': self.phevecs_massred,
+            'elph_data/phmasses': self.phmasses,
             'elph_data/elph_mode': self.elph_mode,
             'elph_data/elph_cart': self.elph_cart,
         }
