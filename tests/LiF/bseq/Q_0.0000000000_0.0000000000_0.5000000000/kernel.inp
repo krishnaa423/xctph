@@ -1,0 +1,6 @@
+exciton_Q_shift 2 0.0 0.0 0.5
+use_symmetries_coarse_grid 
+number_val_bands 4
+number_cond_bands 4
+use_wfn_hdf5 
+dont_check_norms 

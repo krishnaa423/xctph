@@ -1,0 +1,19 @@
+no_symmetries_q_grid 
+number_bands 205
+band_index_min 2
+band_index_max 9
+degeneracy_check_override 
+screened_coulomb_cutoff 10
+dont_use_vxcdat 
+use_wfn_hdf5 
+
+begin kpoints
+0 0 0 1
+0 0 0.5 1
+0 0.5 0 1
+0 0.5 0.5 1
+0.5 0 0 1
+0.5 0 0.5 1
+0.5 0.5 0 1
+0.5 0.5 0.5 1
+end
