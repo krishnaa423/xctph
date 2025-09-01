@@ -4,11 +4,10 @@ from xctph.xct import Xct
 from xctph.utils.k_plus_q import get_all_kq_maps
 from mpi4py import MPI 
 import h5py
-from fp.inputs.input_main import Input 
-from fp.io.pkl import load_obj 
 import numpy as np 
 from ase.units import Bohr, Ha, Ry, eV, Ang 
 from xctph.old_files.symmetrize_mtxel import sym_mtxel
+import jmespath
 #endregion
 
 #region variables
@@ -57,16 +56,30 @@ class ParSize:
 class Xctph:
     def __init__(
         self, 
-        input_filename: str = './input.pkl',
+        nocc: int,
+        nc: int,
+        nv: int,
+        npool: int = 1,
+        nxct: int=10,
         add_electron_part: bool = True,
         add_hole_part: bool = True,
     ):
-        self.input: Input = load_obj(input_filename)
         self.add_electron_part = add_electron_part
         self.add_hole_part = add_hole_part
+        self.nxct: int = nxct
+
+        self.nocc: int = nocc
+        self.nc: int = nc
+        self.nv: int = nv
+        self.npool: int = npool
 
     def generate_elph(self):
-        elph = Elph()
+        elph = Elph(
+            nocc=self.nocc,
+            nc=self.nc,
+            nv=self.nv,
+            npool=self.npool,
+        )
         elph.read()
         elph.write()
 
@@ -99,9 +112,6 @@ class Xctph:
             self.energies = f['/exciton_data/eigenvalues'][()]
             self.avck = f['/exciton_data/eigenvectors'][()]
 
-    def read_input(self):
-        self.nbnd_xct = int(self.input.input_dict['xctph']['num_evecs'])
-
     def calc(self):
         # Preliminaries.
         self.comm = MPI.COMM_WORLD
@@ -111,11 +121,10 @@ class Xctph:
             self.generate_xct()
         self.read_elph()
         self.read_xct()
-        self.read_input()
 
         # Checks.
         assert self.nk_elph == self.nk
-        assert self.nbnd >= self.nbnd_xct
+        assert self.nbnd >= self.nxct
 
         # Calculate.
         # generate additional kq maps
@@ -123,7 +132,7 @@ class Xctph:
         k_minus_Q_map = get_all_kq_maps(self.kpts, self.Qpts, -1.0)
 
         # Parallel version.
-        self.xctbnd_parsize = ParSize(shape=(self.nbnd_xct, self.nbnd_xct), comm=self.comm)
+        self.xctbnd_parsize = ParSize(shape=(self.nxct, self.nxct), comm=self.comm)
         self.xct_start, self.xct_end = self.xctbnd_parsize.get_local_range()
         self.gQq_eh: np.ndarray = np.zeros((self.xct_end - self.xct_start, self.nQ, self.nmodes, self.nq), 'c16')
         self.gQq_e: np.ndarray = np.zeros((self.xct_end - self.xct_start, self.nQ, self.nmodes, self.nq), 'c16')
@@ -170,7 +179,7 @@ class Xctph:
             # header information.
             'ns': 1,
             'nbndskip': 0,
-            'nbnd': self.nbnd_xct,
+            'nbnd': self.nxct,
             'nocc': 0,
             'nmode': self.nmodes,
             'nQ': self.nQ,
@@ -183,7 +192,7 @@ class Xctph:
             'Q_minus_q_map': self.k_minus_q_map,
 
             # energies, frequencies, and matrix elements.
-            'energies': self.energies[:self.nbnd_xct, :],
+            'energies': self.energies[:self.nxct, :],
             'frequencies': self.frequencies,
             'xctph_eh' : self.gQq_eh,
             'xctph_e' : self.gQq_e,
@@ -201,12 +210,12 @@ class Xctph:
             for name, data in xctph_dict.items():
                 if 'xctph' in name:
                     # Write the xctph array in parallel.
-                    ds_xctph_linear = f.create_dataset(f'{name}_linear', shape=(self.nbnd_xct*self.nbnd_xct, self.nQ, self.nmodes, self.nq), dtype=self.gQq_eh.dtype)
+                    ds_xctph_linear = f.create_dataset(f'{name}_linear', shape=(self.nxct*self.nxct, self.nQ, self.nmodes, self.nq), dtype=self.gQq_eh.dtype)
                     ds_xctph_linear[self.xct_start:self.xct_end, ...] = data
 
                     # # Create virtual dataset for reshape.
-                    layout = h5py.VirtualLayout(shape=(self.nbnd_xct, self.nbnd_xct, self.nQ, self.nmodes, self.nq), dtype='c16')
-                    source = h5py.VirtualSource('xctph.h5', f'{name}_linear', shape=(self.nbnd_xct*self.nbnd_xct, self.nQ, self.nmodes, self.nq), dtype='c16')
+                    layout = h5py.VirtualLayout(shape=(self.nxct, self.nxct, self.nQ, self.nmodes, self.nq), dtype='c16')
+                    source = h5py.VirtualSource('xctph.h5', f'{name}_linear', shape=(self.nxct*self.nxct, self.nQ, self.nmodes, self.nq), dtype='c16')
 
                     layout[:, :, :, :, :] = source[:, :, :, :]
                     ds_vx = f.create_virtual_dataset(f'{name}', layout)

@@ -1,17 +1,17 @@
 #region modules
 import os 
-from fp.inputs.input_main import Input 
-from fp.io.pkl import load_obj
 import h5py 
 import xmltodict
 import numpy as np 
 from ase.units import Hartree, Rydberg, _amu, _me
 import scipy 
 from xctph.utils.k_plus_q import get_all_kq_maps
-from fp.schedulers.scheduler import JobProcDesc
+import jmespath
+from xctph.utils.logging import get_logger
 #endregion
 
 #region variables
+logger = get_logger()
 #endregion
 
 #region functions
@@ -21,17 +21,19 @@ from fp.schedulers.scheduler import JobProcDesc
 class Elph:
     def __init__(
         self,
+        nocc: int,
+        nc: int,
+        nv: int,
+        npool: int = 1,
         elph_dirname: str = './save',
-        input_filename: str = 'input.pkl',
         qexml_filename: str = 'wfn.xml',
     ):
         self.elph_dirname: str = elph_dirname
-        self.input_filename: str  = input_filename
         self.qexml_filename: str = qexml_filename
-
-        # Update.
-        self.input: Input = load_obj(self.input_filename) 
-        self.input_dict: dict = self.input.input_dict
+        self.npool: int = npool
+        self.nocc: int = nocc
+        self.nc: int = nc
+        self.nv: int = nv 
 
         # Other vars.
         self.param_dict: dict = None        # Combination of qexml data and input_dict data elements that are needed. 
@@ -47,15 +49,6 @@ class Elph:
             qexml = xmltodict.parse(read_stream.read())
 
         # Update. Order is from base file used for refactoring. 
-        if isinstance(self.input_dict['epw']['job_info'], str):
-            epw_job_info = JobProcDesc.from_job_id(
-                self.input_dict['epw']['job_info'],
-                self.input_dict,
-            )
-        else:
-            epw_job_info = JobProcDesc(**self.input_dict['epw']['job_info'])
-        self.npool = epw_job_info.nk
-        self.npool = 1 if self.npool is None else self.npool
         self.prefix = qexml[u'qes:espresso']['input']['control_variables']['prefix']
         
         # parse qexml input.
@@ -91,9 +84,6 @@ class Elph:
 
         # parse qexml output.
         output_node = qexml[u'qes:espresso']['output']['band_structure']
-        self.nocc = int(self.input_dict['total_valence_bands'])
-        self.nc = self.input_dict['abs']['num_cond_bands']
-        self.nv = self.input_dict['abs']['num_val_bands']
         self.nbnd = self.nocc + self.nc
         self.nbnd_end = self.nocc + self.nc 
         self.nbnd_begin = self.nocc - self.nv 
@@ -135,7 +125,6 @@ class Elph:
             epmatq_dim = '{}c16'.format(self.nbnd_red * self.nbnd_red * self.nmodes * self.nk_per_pool * self.nq)
             zstar_dim = '{}f8'.format(3 * self.nmodes)
             epsi_dim = '{}f8'.format(3 * 3)
-
 
             # Read in all epb file
             record = f.read_record(nqc_dim, xqc_dim, et_dim, dynq_dim, epmatq_dim, zstar_dim, epsi_dim)

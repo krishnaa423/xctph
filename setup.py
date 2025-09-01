@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='xctph',
-    version='1.1.2',
+    version='1.2.0',
     description='Package for computing exciton phonon matrix elements.',
     long_description='Package for computing exciton phonon matrix elements.',
     author='Krishnaa Vadivel',
@@ -12,10 +12,12 @@ setup(
     install_requires=[
         'numpy', 
         'scipy', 
+        'mpi4py',
         'h5py', 
+        'ase',
         'xmltodict', 
         'setuptools',
-        'fp_workflow',
+        'jmespath',
     ],
     # scripts=[     # Does not seem to work.
     #     'xctph/write_eph_h5.py',
