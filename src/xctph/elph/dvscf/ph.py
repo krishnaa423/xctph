@@ -8,4 +8,11 @@
 #endregion
 
 #region classes
+class DvscfPh:
+    def __init__(
+        self,
+        inpath_prefix='./save/dvscf'
+    ):
+        pass
+
 #endregion

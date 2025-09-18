@@ -1,7 +1,0 @@
-hole_position 0.0 0.0 0.0
-supercell_size 2 2 2
-use_symmetries_fine_grid 
-use_symmetries_shifted_grid 
-plot_spin 1
-plot_state 1
-use_wfn_hdf5 

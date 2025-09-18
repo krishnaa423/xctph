@@ -19,11 +19,9 @@ setup(
         'setuptools',
         'jmespath',
     ],
-    # scripts=[     # Does not seem to work.
-    #     'xctph/write_eph_h5.py',
-    #     'xctph/write_xct_h5.py',
-    #     'xctph/compute_xctph.py',
-    #     'xctph/print_eph.py',
-    #     'xctph/print_xctph.py',
-    # ]
+    entry_points={
+        'console_scripts': [
+            'xctph=xctph.scripts.xctph:xctph',
+        ],
+    },
 )
